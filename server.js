@@ -10,8 +10,10 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 // ── Load quiz data ──────────────────────────────────────────────────────────
-const ALL_QUESTIONS = JSON.parse(fs.readFileSync('./quiz_data.json', 'utf-8'));
-console.log(`✅ Loaded ${ALL_QUESTIONS.length} questions`);
+const ALL_MCQ = JSON.parse(fs.readFileSync('./quiz_data.json', 'utf-8'));
+const ALL_SPECIAL = JSON.parse(fs.readFileSync('./quiz_data_new.json', 'utf-8'));
+const ALL_QUESTIONS = [...ALL_MCQ, ...ALL_SPECIAL];
+console.log(`✅ Loaded ${ALL_MCQ.length} MCQ + ${ALL_SPECIAL.length} special = ${ALL_QUESTIONS.length} total questions`);
 
 // ── Room storage ────────────────────────────────────────────────────────────
 // rooms: Map<roomCode, RoomState>
@@ -25,6 +27,13 @@ function shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+/** Normalize answer string for loose comparison */
+function normalizeAns(s) {
+  return String(s).toLowerCase()
+    .replace(/[.,!?;:"'\u201c\u201d\u2018\u2019()]/g, '')
+    .replace(/\s+/g, ' ').trim();
 }
 
 function generateCode() {
@@ -48,13 +57,36 @@ function getLocalIP() {
 function prepareQuestions(numQ) {
   return shuffle(ALL_QUESTIONS).slice(0, Math.min(numQ, ALL_QUESTIONS.length))
     .map(q => {
-      const opts = shuffle([...q.opts]);
-      return {
-        id: q.id,
-        q: q.q,
-        opts: opts.map(o => o.text),         // text only
-        correctIndex: opts.findIndex(o => o.correct)
-      };
+      // ── MCQ (original type) ──
+      if (!q.type || q.type === 'mcq') {
+        const opts = shuffle([...q.opts]);
+        return {
+          id: q.id,
+          type: 'mcq',
+          q: q.q,
+          opts: opts.map(o => o.text),
+          correctIndex: opts.findIndex(o => o.correct)
+        };
+      }
+      // ── fill_in_the_blank ──
+      if (q.type === 'fill_in_the_blank') {
+        return {
+          id: q.id,
+          type: 'fill_in_the_blank',
+          q: q.question,
+          answer: q.answer          // kept server-side for scoring
+        };
+      }
+      // ── arrange_words ──
+      if (q.type === 'arrange_words') {
+        return {
+          id: q.id,
+          type: 'arrange_words',
+          q: q.question,
+          shuffled_words: q.shuffled_words,
+          answer: q.answer
+        };
+      }
     });
 }
 
@@ -152,20 +184,28 @@ io.on('connection', socket => {
   });
 
   // ── PLAYER: submit answer ───────────────────────────────────────────────
-  socket.on('player:answer', ({ index, timeMs }) => {
+  socket.on('player:answer', ({ index, textAnswer, timeMs }) => {
     const room = rooms.get(socket.data?.roomCode);
     if (!room || room.status !== 'question') return;
     if (room.answers[socket.id]) return; // duplicate
 
     const q = room.questions[room.currentQ];
-    const correct = q.correctIndex === index;
+    let correct = false;
+
+    if (q.type === 'mcq' || !q.type) {
+      correct = q.correctIndex === index;
+    } else {
+      // fill_in_the_blank or arrange_words: compare text
+      correct = normalizeAns(textAnswer || '') === normalizeAns(q.answer || '');
+    }
+
     const timeRatio = Math.max(0, 1 - timeMs / (room.timePerQ * 1000));
     const points = correct ? Math.round(500 + 500 * timeRatio) : 0;
 
     const player = room.players.find(p => p.id === socket.id);
     if (player) player.score += points;
 
-    room.answers[socket.id] = { index, timeMs, correct, points };
+    room.answers[socket.id] = { index: index ?? -1, textAnswer, timeMs, correct, points };
     socket.emit('player:ack', { correct, points });
 
     // Update host live counter
@@ -214,8 +254,10 @@ function sendQuestion(roomCode) {
     index: room.currentQ,
     total: room.questions.length,
     text: q.q,
-    opts: q.opts,
-    timePerQ: room.timePerQ
+    opts: q.opts || [],
+    timePerQ: room.timePerQ,
+    type: q.type || 'mcq',
+    shuffled_words: q.shuffled_words || []
   };
 
   // Players get question without correctIndex

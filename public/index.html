@@ -136,6 +136,38 @@
     /* ── HOST LEFT ── */
     #s-hostleft{text-align:center}
     #s-hostleft .icon{font-size:52px;margin-bottom:16px}
+
+    /* ── SPECIAL QUESTION TYPES ── */
+    .q-type-badge{display:inline-block;padding:5px 12px;border-radius:8px;font-size:11px;
+                  font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+    .badge-fill{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+    .badge-arr{background:rgba(34,197,94,.15);color:#34d399;border:1px solid rgba(34,197,94,.3)}
+
+    /* Inline blank input */
+    .blank-input{
+      display:inline-block;min-width:110px;max-width:200px;
+      padding:3px 8px;
+      background:rgba(59,130,246,.1);border:none;
+      border-bottom:2.5px solid var(--acc);
+      color:var(--acc);font-family:inherit;font-size:inherit;font-weight:800;
+      text-align:center;outline:none;transition:all .2s;
+      vertical-align:baseline;border-radius:4px 4px 0 0;
+    }
+    .blank-input:focus{background:rgba(59,130,246,.18)}
+    .blank-input:disabled{color:var(--muted);border-bottom-color:var(--bdr)}
+
+    /* Word chips */
+    .zone-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+              letter-spacing:.5px;margin-bottom:6px;width:100%;text-align:left}
+    .word-zone{display:flex;flex-wrap:wrap;gap:7px;width:100%;min-height:46px;
+               padding:8px;border-radius:12px;align-content:flex-start;margin-bottom:10px}
+    .target-zone{background:rgba(59,130,246,.06);border:1.5px solid rgba(59,130,246,.25)}
+    .target-zone.has-word{border-color:var(--acc)}
+    .source-zone{background:var(--sur);border:1px solid var(--bdr)}
+    .word-chip{padding:8px 13px;background:#334155;border:1px solid #475569;
+               border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;
+               user-select:none;transition:all .15s;color:var(--txt)}
+    .word-chip:active{transform:scale(.94)}
   </style>
 </head>
 <body>
@@ -178,10 +210,24 @@
       <div class="timer-num" id="timer-num">20</div>
     </div>
   </div>
-  <div class="q-card">
+  <div class="q-card" style="width:100%">
+    <div id="q-type-badge-wrap"></div>
     <div class="q-text" id="q-text"></div>
   </div>
+  <!-- MCQ options (original) -->
   <div class="opt-grid" id="opt-grid"></div>
+  <!-- Fill-in-the-blank submit row -->
+  <div id="fill-submit-row" style="display:none;width:100%;margin-top:4px">
+    <button class="btn" id="fill-submit-btn" onclick="submitText()">✔ Gửi đáp án</button>
+  </div>
+  <!-- Arrange words -->
+  <div id="arrange-area" style="display:none;width:100%">
+    <div class="zone-lbl">Câu trả lời của bạn:</div>
+    <div class="word-zone target-zone" id="target-zone"></div>
+    <div class="zone-lbl">Bấm vào từ để ghép:</div>
+    <div class="word-zone source-zone" id="source-zone"></div>
+    <button class="btn" id="arrange-submit-btn" onclick="submitArrange()">✔ Gửi đáp án</button>
+  </div>
 </div>
 
 <!-- ANSWERED (waiting for reveal) -->
@@ -305,19 +351,66 @@ socket.on('game:start', () => {
   clearInterval(timerInterval);
 });
 
-socket.on('player:question', ({ index, total, text, opts, timePerQ }) => {
+socket.on('player:question', ({ index, total, text, opts, timePerQ, type, shuffled_words }) => {
   currentTimePerQ = timePerQ;
   document.getElementById('q-label').textContent = `Câu ${index+1} / ${total}`;
-  document.getElementById('q-text').textContent = text;
 
-  const grid = document.getElementById('opt-grid');
-  grid.innerHTML = opts.map((o, i) => `
-    <button class="opt-btn ${COLORS[i]}" onclick="answer(${i})">
-      <span>
-        <span class="opt-label">${COLORS[i]}</span>
-        ${o}
-      </span>
-    </button>`).join('');
+  const typeBadgeWrap = document.getElementById('q-type-badge-wrap');
+  const optGrid  = document.getElementById('opt-grid');
+  const fillRow  = document.getElementById('fill-submit-row');
+  const arrArea  = document.getElementById('arrange-area');
+
+  // Reset all areas
+  optGrid.innerHTML  = '';
+  optGrid.style.display  = 'none';
+  fillRow.style.display  = 'none';
+  arrArea.style.display  = 'none';
+  typeBadgeWrap.innerHTML = '';
+  document.getElementById('fill-submit-btn') && (document.getElementById('fill-submit-btn').disabled = false);
+  document.getElementById('arrange-submit-btn') && (document.getElementById('arrange-submit-btn').disabled = false);
+
+  if (!type || type === 'mcq') {
+    // ── Original MCQ ──
+    document.getElementById('q-text').textContent = text;
+    optGrid.style.display = 'grid';
+    optGrid.innerHTML = opts.map((o, i) => `
+      <button class="opt-btn ${COLORS[i]}" onclick="answer(${i})">
+        <span>
+          <span class="opt-label">${COLORS[i]}</span>
+          ${o}
+        </span>
+      </button>`).join('');
+
+  } else if (type === 'fill_in_the_blank') {
+    typeBadgeWrap.innerHTML = '<span class="q-type-badge badge-fill">✍️ Điền từ vào chỗ trống</span>';
+    // Render inline blank
+    let qText = text
+      .replace(' (Điền từ/cụm từ thích hợp)', '')
+      .replace(' (Điền từ/cụm từ thích hợp).', '');
+    const inputHtml = `<input id="blank-input" class="blank-input" type="text" autocomplete="off" placeholder="..."/>`;
+    if (qText.includes('... ... ...')) qText = qText.replace('... ... ...', inputHtml);
+    else if (qText.includes('...'))    qText = qText.replace('...', inputHtml);
+    else qText = qText.replace(/\?$/, '') + ' ' + inputHtml;
+    document.getElementById('q-text').innerHTML = qText;
+    fillRow.style.display = 'block';
+    setTimeout(() => { const i = document.getElementById('blank-input'); if (i) { i.focus(); i.onkeypress = e => { if (e.key === 'Enter') submitText(); }; } }, 100);
+
+  } else if (type === 'arrange_words') {
+    typeBadgeWrap.innerHTML = '<span class="q-type-badge badge-arr">🧩 Sắp xếp câu</span>';
+    document.getElementById('q-text').textContent = text.replace(' (Sắp xếp các từ sau thành câu hoàn chỉnh)', '');
+    const src = document.getElementById('source-zone');
+    const tgt = document.getElementById('target-zone');
+    src.innerHTML = ''; tgt.innerHTML = '';
+    tgt.classList.remove('has-word');
+    (shuffled_words || []).forEach(word => {
+      const chip = document.createElement('span');
+      chip.className = 'word-chip';
+      chip.textContent = word;
+      chip.onclick = () => moveChip(chip, 'target');
+      src.appendChild(chip);
+    });
+    arrArea.style.display = 'block';
+  }
 
   show('s-question');
   startTimer(timePerQ);
@@ -327,6 +420,44 @@ let answerStart = 0;
 document.addEventListener('DOMContentLoaded', () => {});
 
 socket.on('player:question', () => { answerStart = Date.now(); });
+
+/* ── Word chip (arrange) ── */
+function moveChip(chip, dest) {
+  const src = document.getElementById('source-zone');
+  const tgt = document.getElementById('target-zone');
+  if (dest === 'target') { chip.onclick = () => moveChip(chip, 'source'); tgt.appendChild(chip); }
+  else { chip.onclick = () => moveChip(chip, 'target'); src.appendChild(chip); }
+  tgt.classList.toggle('has-word', tgt.children.length > 0);
+}
+
+/* ── Submit text (fill-in-the-blank) ── */
+function submitText() {
+  const inp = document.getElementById('blank-input');
+  if (!inp || !inp.value.trim()) { alert('Nhập câu trả lời đã!'); return; }
+  const timeMs = Date.now() - answerStart;
+  inp.disabled = true;
+  document.getElementById('fill-submit-btn').disabled = true;
+  socket.emit('player:answer', { textAnswer: inp.value.trim(), timeMs });
+  document.getElementById('ans-icon').textContent = '⌛';
+  document.getElementById('ans-title').textContent = 'Đã gửi đáp án!';
+  document.getElementById('ans-sub').textContent = 'Đang chờ mọi người...';
+  show('s-answered');
+}
+
+/* ── Submit arrange ── */
+function submitArrange() {
+  const chips = document.getElementById('target-zone').children;
+  if (chips.length === 0) { alert('Bấm chọn các từ để ghép câu đã!'); return; }
+  const textAnswer = Array.from(chips).map(c => c.textContent).join(' ');
+  const timeMs = Date.now() - answerStart;
+  document.querySelectorAll('.word-chip').forEach(c => c.style.pointerEvents = 'none');
+  document.getElementById('arrange-submit-btn').disabled = true;
+  socket.emit('player:answer', { textAnswer, timeMs });
+  document.getElementById('ans-icon').textContent = '⌛';
+  document.getElementById('ans-title').textContent = 'Đã gửi đáp án!';
+  document.getElementById('ans-sub').textContent = 'Đang chờ mọi người...';
+  show('s-answered');
+}
 
 function answer(idx) {
   const timeMs = Date.now() - answerStart;

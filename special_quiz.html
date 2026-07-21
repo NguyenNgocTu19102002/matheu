@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>Bài Tập Đặc Biệt — Mát-thêu</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0f172a;--sur:#1e293b;--bdr:#334155;
+      --txt:#f1f5f9;--muted:#94a3b8;
+      --ok:#22c55e;--err:#ef4444;--acc:#3b82f6;
+    }
+    html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt)}
+    body{display:flex;flex-direction:column;align-items:center;justify-content:center;
+         min-height:100%;padding:16px;overflow-x:hidden}
+
+    .screen{display:none;width:100%;max-width:480px;animation:up .3s ease}
+    .screen.on{display:flex;flex-direction:column;align-items:center}
+    @keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ── START ── */
+    #s-start{text-align:center}
+    #s-start .logo{font-size:60px;margin-bottom:14px;animation:bob 3s ease-in-out infinite;display:inline-block}
+    @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+    #s-start h1{font-size:24px;font-weight:800;margin-bottom:8px}
+    #s-start p{color:var(--muted);font-size:14px;margin-bottom:28px;line-height:1.5}
+    .stats-row{display:flex;gap:10px;margin-bottom:24px;width:100%}
+    .stat-card{flex:1;background:var(--sur);border:1px solid var(--bdr);border-radius:12px;
+               padding:14px 10px;text-align:center}
+    .stat-card .n{font-size:24px;font-weight:800;color:var(--acc)}
+    .stat-card .l{font-size:11px;color:var(--muted);margin-top:4px}
+
+    .btn{width:100%;padding:15px;background:var(--acc);color:#fff;font-family:inherit;
+         font-size:16px;font-weight:700;border:none;border-radius:12px;cursor:pointer;
+         transition:all .18s;-webkit-appearance:none}
+    .btn:active{transform:scale(.97)}
+    .btn:disabled{opacity:.5;cursor:default}
+    .btn.sec{background:var(--sur);border:1.5px solid var(--bdr);color:var(--txt);margin-top:10px}
+
+    /* ── QUESTION ── */
+    #s-question{width:100%}
+    .q-header{display:flex;align-items:center;justify-content:space-between;
+               margin-bottom:14px;gap:12px}
+    .q-num{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+    .q-score-badge{font-size:12px;font-weight:700;color:var(--acc);background:rgba(59,130,246,.12);
+                   padding:4px 10px;border-radius:99px;border:1px solid rgba(59,130,246,.3)}
+    .timer-ring{position:relative;width:52px;height:52px;flex-shrink:0}
+    .timer-ring svg{transform:rotate(-90deg)}
+    .timer-bg{fill:none;stroke:#334155;stroke-width:5}
+    .timer-fill{fill:none;stroke:var(--acc);stroke-width:5;stroke-linecap:round;
+                stroke-dasharray:126;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear}
+    .timer-fill.warn{stroke:#f59e0b}
+    .timer-fill.danger{stroke:var(--err)}
+    .timer-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+               font-size:16px;font-weight:800;color:var(--txt)}
+
+    /* Type badge */
+    .type-badge{display:inline-block;padding:5px 12px;border-radius:8px;font-size:11px;
+                font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+    .type-fill{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+    .type-arr{background:rgba(34,197,94,.15);color:#34d399;border:1px solid rgba(34,197,94,.3)}
+
+    .q-card{background:var(--sur);border:1px solid var(--bdr);border-radius:16px;
+            padding:20px 18px;margin-bottom:16px;width:100%}
+    /* Question text — inline input sits INSIDE here */
+    .q-text{font-size:clamp(14px,4vw,17px);line-height:1.85;font-weight:600;text-align:center;
+            word-break:break-word}
+    /* The blank input embedded in the sentence */
+    .blank-input{
+      display:inline-block;
+      min-width:120px;max-width:220px;
+      padding:4px 10px;
+      background:rgba(59,130,246,.08);
+      border:none;border-bottom:2.5px solid var(--acc);
+      color:var(--acc);
+      font-family:inherit;font-size:inherit;font-weight:800;
+      text-align:center;
+      outline:none;transition:all .2s;
+      vertical-align:baseline;
+      border-radius:4px 4px 0 0;
+    }
+    .blank-input:focus{background:rgba(59,130,246,.15);border-bottom-color:#60a5fa}
+    .blank-input:disabled{color:var(--muted);border-bottom-color:var(--bdr)}
+
+    /* ── ARRANGE WORDS ── */
+    .zone-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+              letter-spacing:.5px;margin-bottom:8px;width:100%}
+    .word-zone{display:flex;flex-wrap:wrap;gap:8px;width:100%;min-height:54px;
+               padding:10px;border-radius:12px;align-content:flex-start;margin-bottom:14px}
+    .target-zone{background:rgba(59,130,246,.06);border:1.5px solid rgba(59,130,246,.25);
+                 transition:border-color .2s}
+    .target-zone.has-word{border-color:var(--acc)}
+    .source-zone{background:var(--sur);border:1px solid var(--bdr)}
+    .word-chip{padding:9px 15px;background:#334155;border:1px solid #475569;
+               border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;
+               user-select:none;transition:all .15s;color:var(--txt)}
+    .word-chip:hover{background:#475569;transform:translateY(-1px)}
+    .word-chip:active{transform:translateY(0)}
+    .word-chip.disabled{pointer-events:none;opacity:.6}
+
+    /* ── CHECK BUTTON ── */
+    #btn-check{margin-top:4px}
+
+    /* ── FEEDBACK ── */
+    .feedback{width:100%;padding:14px 16px;border-radius:12px;margin-top:4px;
+              font-weight:700;font-size:14px;line-height:1.55;display:none;
+              animation:up .3s ease}
+    .feedback.ok{display:block;background:rgba(34,197,94,.12);border:1.5px solid rgba(34,197,94,.35);color:#4ade80}
+    .feedback.bad{display:block;background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.3);color:#f87171}
+    .fb-correct{margin-top:8px;font-size:13px;color:var(--txt);font-weight:500}
+    .fb-correct strong{color:#4ade80;font-weight:800}
+
+    /* ── RESULT ── */
+    #s-result{text-align:center;width:100%}
+    #s-result .trophy{font-size:64px;margin-bottom:14px;display:inline-block;
+                      animation:bounce .6s ease infinite alternate}
+    @keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-10px)}}
+    #s-result h2{font-size:24px;font-weight:800;margin-bottom:6px}
+    #s-result p{color:var(--muted);font-size:14px;margin-bottom:24px}
+    .score-ring{position:relative;width:140px;height:140px;margin:0 auto 24px}
+    .score-ring svg{transform:rotate(-90deg)}
+    .ring-bg{fill:none;stroke:#1e293b;stroke-width:10}
+    .ring-fill{fill:none;stroke:var(--acc);stroke-width:10;stroke-linecap:round;
+               stroke-dasharray:345;stroke-dashoffset:345;transition:stroke-dashoffset 1.2s ease}
+    .ring-txt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+    .ring-txt .pct{font-size:28px;font-weight:800;color:var(--acc)}
+    .ring-txt .lbl{font-size:11px;color:var(--muted)}
+    .r-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;width:100%}
+    .r-stat{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;padding:14px 10px;text-align:center}
+    .r-stat .v{font-size:24px;font-weight:800}
+    .r-stat .l{font-size:11px;color:var(--muted);margin-top:4px}
+    .vg{color:var(--ok)}.vr{color:var(--err)}
+  </style>
+</head>
+<body>
+
+<!-- ── START ── -->
+<div id="s-start" class="screen on">
+  <div class="logo">🧩</div>
+  <h1>Bài Tập Đặc Biệt</h1>
+  <p>Thử thách trí nhớ với <b>50 câu</b> dạng Điền từ vào chỗ trống &amp; Sắp xếp câu.</p>
+  <div class="stats-row">
+    <div class="stat-card"><div class="n">25</div><div class="l">Điền từ</div></div>
+    <div class="stat-card"><div class="n">25</div><div class="l">Sắp xếp</div></div>
+    <div class="stat-card"><div class="n" id="st-time">40s</div><div class="l">/ câu</div></div>
+  </div>
+  <button class="btn" id="btn-start" onclick="initQuiz()" disabled>Đang tải...</button>
+  <a href="/" style="color:var(--muted);font-size:13px;margin-top:16px;text-decoration:none">← Quay lại trang chủ</a>
+</div>
+
+<!-- ── QUESTION ── -->
+<div id="s-question" class="screen">
+  <div class="q-header" style="width:100%">
+    <div>
+      <div class="q-num" id="q-label">Câu 1 / 50</div>
+      <div class="q-score-badge" id="q-score-badge">Điểm: 0</div>
+    </div>
+    <div class="timer-ring">
+      <svg width="52" height="52" viewBox="0 0 52 52">
+        <circle class="timer-bg" cx="26" cy="26" r="20"/>
+        <circle class="timer-fill" id="timer-fill" cx="26" cy="26" r="20"/>
+      </svg>
+      <div class="timer-num" id="timer-num">40</div>
+    </div>
+  </div>
+
+  <div id="type-badge-wrap" style="width:100%"></div>
+
+  <div class="q-card" style="width:100%">
+    <div class="q-text" id="q-text"></div>
+  </div>
+
+  <!-- Word arrange area (shown only for arrange type) -->
+  <div id="arrange-area" style="width:100%;display:none">
+    <div class="zone-lbl">Câu trả lời của bạn:</div>
+    <div class="word-zone target-zone" id="target-zone"></div>
+    <div class="zone-lbl">Bấm vào từ để ghép:</div>
+    <div class="word-zone source-zone" id="source-zone"></div>
+  </div>
+
+  <div class="feedback" id="feedback"></div>
+  <button class="btn" id="btn-check" onclick="handleCheck()">Kiểm tra đáp án</button>
+</div>
+
+<!-- ── RESULT ── -->
+<div id="s-result" class="screen">
+  <div class="trophy" id="r-trophy">🏆</div>
+  <h2 id="r-title">Hoàn thành!</h2>
+  <p id="r-sub"></p>
+  <div class="score-ring">
+    <svg width="140" height="140" viewBox="0 0 140 140">
+      <circle class="ring-bg" cx="70" cy="70" r="55"/>
+      <circle class="ring-fill" id="r-ring" cx="70" cy="70" r="55"/>
+    </svg>
+    <div class="ring-txt"><span class="pct" id="r-pct">0%</span><span class="lbl">điểm</span></div>
+  </div>
+  <div class="r-stats">
+    <div class="r-stat"><div class="v vg" id="r-ok">0</div><div class="l">✅ Đúng</div></div>
+    <div class="r-stat"><div class="v vr" id="r-bad">0</div><div class="l">❌ Sai</div></div>
+  </div>
+  <button class="btn" onclick="location.reload()">🔄 Làm lại</button>
+  <button class="btn sec" onclick="location.href='/'">🏠 Trang chủ</button>
+</div>
+
+<script>
+const TIME_PER_Q = 40;
+let quizData = [], idx = 0, score = 0, answered = false;
+let timerInterval = null, startTs = 0;
+
+/* ── Normalize for comparison ── */
+function norm(s) {
+  return s.toLowerCase()
+          .replace(/[.,!?;:"'""()]/g,'')
+          .replace(/\s+/g,' ').trim();
+}
+
+/* ── Screen switch ── */
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('on');
+    s.style.display = 'none';
+  });
+  const el = document.getElementById(id);
+  el.style.display = 'flex';
+  void el.offsetWidth;
+  el.classList.add('on');
+}
+
+/* ── Load data ── */
+async function loadData() {
+  try {
+    const r = await fetch('./quiz_data_new.json');
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    quizData = data.sort(() => Math.random() - 0.5);
+    const btn = document.getElementById('btn-start');
+    btn.textContent = `▶ Bắt đầu (${quizData.length} câu)`;
+    btn.disabled = false;
+  } catch(e) {
+    document.getElementById('btn-start').textContent = '❌ Không tải được dữ liệu';
+  }
+}
+
+/* ── Timer ── */
+function startTimer(secs) {
+  clearInterval(timerInterval);
+  const CIRC = 126;
+  let rem = secs;
+  const fill = document.getElementById('timer-fill');
+  const num  = document.getElementById('timer-num');
+  function tick() {
+    const ratio = rem / secs;
+    fill.style.strokeDashoffset = CIRC * (1 - ratio);
+    fill.className = 'timer-fill' + (rem <= 5 ? ' danger' : rem <= 10 ? ' warn' : '');
+    num.textContent = rem;
+    if (rem <= 0) { clearInterval(timerInterval); handleTimeout(); }
+    rem--;
+  }
+  tick();
+  timerInterval = setInterval(tick, 1000);
+}
+
+function handleTimeout() {
+  if (answered) return;
+  answered = true;
+  const q = quizData[idx];
+  showFeedback(false, q.answer, true);
+  document.getElementById('btn-check').textContent = 'Câu tiếp theo →';
+}
+
+/* ── Render question ── */
+function initQuiz() { idx = 0; score = 0; show('s-question'); renderQ(); }
+
+function renderQ() {
+  answered = false;
+  const q = quizData[idx];
+
+  document.getElementById('q-label').textContent = `Câu ${idx + 1} / ${quizData.length}`;
+  document.getElementById('q-score-badge').textContent = `Điểm: ${score}`;
+  document.getElementById('feedback').className = 'feedback';
+  document.getElementById('btn-check').textContent = 'Kiểm tra đáp án';
+  document.getElementById('arrange-area').style.display = 'none';
+
+  // Badge
+  const bw = document.getElementById('type-badge-wrap');
+  if (q.type === 'fill_in_the_blank') {
+    bw.innerHTML = `<span class="type-badge type-fill">✍️ Điền từ vào chỗ trống</span>`;
+    renderFill(q);
+  } else {
+    bw.innerHTML = `<span class="type-badge type-arr">🧩 Sắp xếp câu</span>`;
+    renderArrange(q);
+  }
+
+  startTimer(TIME_PER_Q);
+  startTs = Date.now();
+}
+
+/* ── Render fill-in-the-blank ── */
+function renderFill(q) {
+  // Strip the trailing hint text
+  let text = q.question
+    .replace(' (Điền từ/cụm từ thích hợp)', '')
+    .replace(' (Điền từ/cụm từ thích hợp).', '');
+
+  const INPUT = `<input id="blank-input" class="blank-input" type="text" autocomplete="off" placeholder="..."/>`;
+
+  // Detect position of blank: look for "... ... ..." or "..."
+  if (text.includes('... ... ...')) {
+    text = text.replace('... ... ...', INPUT);
+  } else if (text.includes('...')) {
+    text = text.replace('...', INPUT);
+  } else {
+    // No explicit blank marker → question asks "what is X?" → append blank at end
+    // Detect question-style sentences and rewrite them
+    text = rewriteAsInline(text, q.answer) + ' ' + INPUT;
+  }
+
+  document.getElementById('q-text').innerHTML = text;
+
+  const inp = document.getElementById('blank-input');
+  if (inp) {
+    inp.onkeypress = e => { if (e.key === 'Enter') handleCheck(); };
+    setTimeout(() => inp.focus(), 150);
+  }
+}
+
+/* Rewrite a plain question into an inline cloze sentence when there's no "..." */
+function rewriteAsInline(question, answer) {
+  // Remove trailing "?"
+  return question.replace(/\?$/, '').replace(/\?(\s*\(Mt.*?\))?$/, '$1');
+}
+
+/* ── Render arrange-words ── */
+function renderArrange(q) {
+  const area = document.getElementById('arrange-area');
+  area.style.display = 'block';
+
+  // Plain question text (no inline input)
+  const text = q.question.replace(' (Sắp xếp các từ sau thành câu hoàn chỉnh)', '');
+  document.getElementById('q-text').textContent = text;
+
+  const src = document.getElementById('source-zone');
+  const tgt = document.getElementById('target-zone');
+  src.innerHTML = '';
+  tgt.innerHTML = '';
+  tgt.classList.remove('has-word');
+
+  q.shuffled_words.forEach(word => {
+    const chip = document.createElement('span');
+    chip.className = 'word-chip';
+    chip.textContent = word;
+    chip.onclick = () => moveChip(chip, 'target');
+    src.appendChild(chip);
+  });
+}
+
+function moveChip(chip, dest) {
+  if (answered) return;
+  const src = document.getElementById('source-zone');
+  const tgt = document.getElementById('target-zone');
+  if (dest === 'target') {
+    chip.onclick = () => moveChip(chip, 'source');
+    tgt.appendChild(chip);
+  } else {
+    chip.onclick = () => moveChip(chip, 'target');
+    src.appendChild(chip);
+  }
+  tgt.classList.toggle('has-word', tgt.children.length > 0);
+}
+
+/* ── Check ── */
+function handleCheck() {
+  if (answered) {
+    idx++;
+    if (idx >= quizData.length) finishQuiz();
+    else renderQ();
+    return;
+  }
+
+  const q = quizData[idx];
+  let userAns = '';
+
+  if (q.type === 'fill_in_the_blank') {
+    const inp = document.getElementById('blank-input');
+    if (!inp || !inp.value.trim()) { alert('Nhập câu trả lời đã!'); return; }
+    userAns = inp.value;
+    inp.disabled = true;
+  } else {
+    const chips = document.getElementById('target-zone').children;
+    if (chips.length === 0) { alert('Bấm chọn các từ để ghép câu đã!'); return; }
+    userAns = Array.from(chips).map(c => c.textContent).join(' ');
+    // Disable all chips
+    document.querySelectorAll('.word-chip').forEach(c => c.classList.add('disabled'));
+  }
+
+  clearInterval(timerInterval);
+  answered = true;
+  const correct = norm(userAns) === norm(q.answer);
+  if (correct) score++;
+  document.getElementById('q-score-badge').textContent = `Điểm: ${score}`;
+  showFeedback(correct, q.answer, false);
+  document.getElementById('btn-check').textContent = 'Câu tiếp theo →';
+}
+
+function showFeedback(correct, correctAns, timeout) {
+  const fb = document.getElementById('feedback');
+  if (timeout) {
+    fb.className = 'feedback bad';
+    fb.innerHTML = `⏰ Hết giờ!<div class="fb-correct">Đáp án đúng: <strong>${correctAns}</strong></div>`;
+  } else if (correct) {
+    fb.className = 'feedback ok';
+    fb.innerHTML = `✅ Chính xác! Bạn làm rất tốt!`;
+  } else {
+    fb.className = 'feedback bad';
+    fb.innerHTML = `❌ Chưa đúng!<div class="fb-correct">Đáp án đúng: <strong>${correctAns}</strong></div>`;
+  }
+}
+
+/* ── Finish ── */
+function finishQuiz() {
+  show('s-result');
+  const total = quizData.length;
+  const pct = Math.round((score / total) * 100);
+  const bad = total - score;
+
+  document.getElementById('r-ok').textContent = score;
+  document.getElementById('r-bad').textContent = bad;
+  document.getElementById('r-pct').textContent = pct + '%';
+
+  const emojis = pct >= 80 ? '🏆' : pct >= 50 ? '😊' : '💪';
+  document.getElementById('r-trophy').textContent = emojis;
+  document.getElementById('r-title').textContent = pct >= 80 ? 'Xuất sắc!' : pct >= 50 ? 'Khá tốt!' : 'Cố lên!';
+  document.getElementById('r-sub').textContent = `Bạn trả lời đúng ${score}/${total} câu.`;
+
+  // Animate ring
+  setTimeout(() => {
+    const CIRC = 345;
+    document.getElementById('r-ring').style.strokeDashoffset = CIRC * (1 - pct / 100);
+  }, 200);
+}
+
+loadData();
+</script>
+</body>
+</html>
