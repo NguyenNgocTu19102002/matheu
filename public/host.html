@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quiz Mát-thêu — Host</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0f172a;--sur:#1e293b;--sur2:#273549;--bdr:#334155;
+      --txt:#f1f5f9;--muted:#94a3b8;
+      --ok:#22c55e;--err:#ef4444;--acc:#3b82f6;--acc2:#2563eb;
+    }
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
+
+    .screen{display:none;min-height:100vh;padding:24px;animation:up .3s ease}
+    .screen.on{display:flex;flex-direction:column}
+    @keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ── shared ── */
+    .btn{padding:13px 24px;border:none;border-radius:12px;font-family:inherit;font-size:14px;
+         font-weight:700;cursor:pointer;transition:all .18s}
+    .btn.pri{background:var(--acc);color:#fff} .btn.pri:hover{background:var(--acc2)}
+    .btn.sec{background:var(--sur);color:var(--txt);border:1.5px solid var(--bdr)}
+    .btn.sec:hover{border-color:#475569}
+    .btn.danger{background:var(--err);color:#fff}
+    .btn:disabled{opacity:.5;cursor:default}
+    .card{background:var(--sur);border:1px solid var(--bdr);border-radius:16px;padding:20px}
+    .pills{display:flex;gap:8px;flex-wrap:wrap}
+    .pill{flex:1;min-width:70px;padding:10px 12px;border-radius:10px;border:1px solid var(--bdr);
+          background:var(--sur2);color:var(--muted);font-family:inherit;font-size:13px;
+          font-weight:600;cursor:pointer;transition:all .18s;text-align:center}
+    .pill.on{border-color:var(--acc);background:rgba(59,130,246,.15);color:var(--acc)}
+    .pill:hover:not(.on){border-color:#475569;color:var(--txt)}
+    .sec-label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+               margin-bottom:10px;font-weight:700}
+
+    /* ── SETUP ── */
+    #s-setup{align-items:center;justify-content:center}
+    #s-setup .logo{font-size:64px;text-align:center;margin-bottom:16px;animation:bob 3s ease-in-out infinite}
+    @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+    #s-setup h1{font-size:28px;font-weight:800;text-align:center;margin-bottom:4px}
+    #s-setup p{color:var(--muted);text-align:center;font-size:14px;margin-bottom:32px}
+    #s-setup .inner{max-width:460px;width:100%}
+    #s-setup .card{margin-bottom:16px}
+    #s-setup .card h3{font-size:13px;color:var(--muted);margin-bottom:12px;
+                       text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+
+    /* ── LOBBY ── */
+    #s-lobby{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+    .lobby-main{}
+    .lobby-code-card{background:linear-gradient(135deg,#1e293b,#273549);
+                      border:1px solid var(--bdr);border-radius:20px;padding:28px;text-align:center;
+                      margin-bottom:20px}
+    .lobby-code-card .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;
+                           letter-spacing:.8px;margin-bottom:8px}
+    .code-big{font-size:52px;font-weight:800;letter-spacing:8px;color:var(--acc);
+              font-variant-numeric:tabular-nums}
+    .lobby-url{font-size:13px;color:var(--muted);margin-top:10px;word-break:break-all}
+    .lobby-url span{color:var(--txt);font-weight:600}
+    .qr-wrap{display:flex;justify-content:center;margin-top:16px}
+    .qr-wrap img{border-radius:12px;border:4px solid #fff}
+
+    .player-list{background:var(--sur);border:1px solid var(--bdr);border-radius:16px;overflow:hidden}
+    .player-list-hdr{padding:14px 18px;border-bottom:1px solid var(--bdr);
+                      display:flex;align-items:center;justify-content:space-between}
+    .player-list-hdr h3{font-size:14px;font-weight:700}
+    .player-count{background:var(--acc);color:#fff;border-radius:99px;
+                  padding:3px 10px;font-size:12px;font-weight:700}
+    .player-list-body{max-height:400px;overflow-y:auto}
+    .player-item{display:flex;align-items:center;gap:12px;padding:12px 18px;
+                 border-bottom:1px solid #1e293b}
+    .player-item:last-child{border-bottom:none}
+    .player-avatar{width:34px;height:34px;border-radius:10px;
+                   background:linear-gradient(135deg,var(--acc),#60a5fa);
+                   display:flex;align-items:center;justify-content:center;
+                   font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .player-nick{font-size:14px;font-weight:600}
+    .player-empty{padding:32px;text-align:center;color:var(--muted);font-size:13px}
+
+    .lobby-side .card{margin-bottom:16px}
+    .lobby-actions{display:flex;flex-direction:column;gap:10px}
+
+    /* ── QUESTION (host) ── */
+    #s-question{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start}
+    .q-main{}
+    .q-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .q-badge{background:var(--acc);color:#fff;border-radius:99px;padding:6px 16px;
+             font-size:13px;font-weight:700}
+    .q-timer-wrap{display:flex;align-items:center;gap:16px}
+    .big-timer{font-size:48px;font-weight:800;color:var(--txt);
+               font-variant-numeric:tabular-nums;width:60px;text-align:center}
+    .big-timer.warn{color:#f59e0b} .big-timer.danger{color:var(--err)}
+    .answer-bar{height:8px;background:var(--sur2);border-radius:99px;
+               overflow:hidden;margin-bottom:6px}
+    .answer-fill{height:100%;background:linear-gradient(90deg,var(--acc),#60a5fa);
+                 border-radius:99px;transition:width .4s}
+    .answer-label{font-size:12px;color:var(--muted)}
+
+    .q-text-box{background:var(--sur);border:1px solid var(--bdr);border-radius:18px;
+                padding:28px;margin-bottom:18px}
+    .q-text-box .q-num{font-size:11px;color:var(--acc);font-weight:700;text-transform:uppercase;
+                        letter-spacing:.8px;margin-bottom:10px}
+    .q-text-box .q-txt{font-size:clamp(16px,2.5vw,22px);font-weight:700;line-height:1.55}
+
+    .opts-host{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .opt-host{padding:16px;border-radius:14px;color:#fff;font-size:14px;font-weight:700;
+              display:flex;align-items:center;gap:10px;position:relative}
+    .opt-host.A{background:rgba(239,68,68,.15);border:2px solid #ef4444}
+    .opt-host.B{background:rgba(59,130,246,.15);border:2px solid #3b82f6}
+    .opt-host.C{background:rgba(245,158,11,.15);border:2px solid #f59e0b}
+    .opt-host.D{background:rgba(34,197,94,.15);border:2px solid #22c55e}
+    .opt-host.E{background:rgba(168,85,247,.15);border:2px solid #a855f7}
+    .opt-host.F{background:rgba(236,72,153,.15);border:2px solid #ec4899}
+    .opt-host.correct{outline:3px solid #fff;box-shadow:0 0 20px rgba(255,255,255,.15)}
+    .opt-letter{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;
+                justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+    .A .opt-letter{background:#ef4444}
+    .B .opt-letter{background:#3b82f6}
+    .C .opt-letter{background:#f59e0b}
+    .D .opt-letter{background:#22c55e}
+    .E .opt-letter{background:#a855f7}
+    .F .opt-letter{background:#ec4899}
+    .opt-txt{flex:1;color:var(--txt)}
+    .opt-count{font-size:11px;color:var(--muted);position:absolute;right:12px;bottom:8px}
+
+    /* ── REVEAL (host) ── */
+    #s-reveal{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start}
+    .dist-chart{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+    .dist-row{display:flex;align-items:center;gap:10px}
+    .dist-label{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;
+                justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
+    .A.dist-label{background:#ef4444}
+    .B.dist-label{background:#3b82f6}
+    .C.dist-label{background:#f59e0b}
+    .D.dist-label{background:#22c55e}
+    .dist-bar-wrap{flex:1;background:var(--sur2);border-radius:99px;height:28px;overflow:hidden}
+    .dist-bar{height:100%;border-radius:99px;transition:width .6s ease;min-width:0;
+              display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:700;color:#fff}
+    .A .dist-bar{background:#ef4444}
+    .B .dist-bar{background:#3b82f6}
+    .C .dist-bar{background:#f59e0b}
+    .D .dist-bar{background:#22c55e}
+    .dist-n{font-size:13px;font-weight:700;min-width:28px;text-align:right}
+
+    .lb-full{background:var(--sur);border:1px solid var(--bdr);border-radius:16px;overflow:hidden}
+    .lb-full-hdr{padding:14px 18px;border-bottom:1px solid var(--bdr);font-size:14px;font-weight:700}
+    .lb-full-row{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #1e293b}
+    .lb-full-row:last-child{border-bottom:none}
+    .lb-full-rank{font-size:20px;min-width:32px}
+    .lb-full-nick{flex:1;font-size:15px;font-weight:600}
+    .lb-full-score{font-size:15px;font-weight:700;color:var(--acc)}
+    .lb-full-delta{font-size:12px;color:var(--ok);margin-left:6px}
+
+    /* ── GAMEOVER (host) ── */
+    #s-gameover{align-items:center;justify-content:center}
+    #s-gameover .inner{max-width:600px;width:100%;text-align:center}
+    #s-gameover .trophy{font-size:80px;margin-bottom:20px;animation:bounce .6s ease infinite alternate}
+    @keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-12px)}}
+    #s-gameover h1{font-size:36px;font-weight:800;margin-bottom:8px}
+    #s-gameover p{color:var(--muted);margin-bottom:32px}
+    .final-podium{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px}
+    .podium-card{background:var(--sur);border:1px solid var(--bdr);border-radius:16px;
+                 padding:20px 12px;text-align:center}
+    .podium-card:nth-child(1){border-color:#fbbf24;background:rgba(251,191,36,.06)}
+    .podium-card:nth-child(2){border-color:#94a3b8;background:rgba(148,163,184,.05)}
+    .podium-card:nth-child(3){border-color:#cd7c4a;background:rgba(205,124,74,.05)}
+    .podium-icon{font-size:32px;margin-bottom:8px}
+    .podium-nick{font-size:15px;font-weight:700;margin-bottom:4px}
+    .podium-score{font-size:22px;font-weight:800;color:var(--acc)}
+
+    @media(max-width:900px){
+      #s-lobby,#s-question,#s-reveal{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="s-setup" class="screen on">
+  <div class="inner">
+    <div class="logo">🎮</div>
+    <h1>Quiz Mát-thêu</h1>
+    <p>Bảng điều khiển Host — Tạo phòng thi để bắt đầu</p>
+
+    <div class="card">
+      <h3>🎯 Số câu hỏi</h3>
+      <div class="pills" id="numq-pills">
+        <button class="pill" data-v="10">10 câu</button>
+        <button class="pill on" data-v="20">20 câu</button>
+        <button class="pill" data-v="50">50 câu</button>
+        <button class="pill" data-v="100">100 câu</button>
+        <button class="pill" data-v="422">Tất cả</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>⏱️ Thời gian mỗi câu</h3>
+      <div class="pills" id="time-pills">
+        <button class="pill" data-v="10">10s</button>
+        <button class="pill on" data-v="20">20s</button>
+        <button class="pill" data-v="30">30s</button>
+        <button class="pill" data-v="60">60s</button>
+      </div>
+    </div>
+
+    <button class="btn pri" style="width:100%;padding:16px;font-size:16px" onclick="createRoom()">
+      🚀 Tạo phòng thi
+    </button>
+  </div>
+</div>
+
+<!-- LOBBY -->
+<div id="s-lobby" class="screen">
+  <div class="lobby-main">
+    <div class="lobby-code-card">
+      <div class="lbl">Mã phòng để tham gia</div>
+      <div class="code-big" id="room-code">------</div>
+      <div class="lobby-url">Truy cập: <span id="join-url">...</span></div>
+      <div class="qr-wrap">
+        <img id="qr-img" src="" width="160" height="160" alt="QR Code"/>
+      </div>
+    </div>
+
+    <div class="player-list">
+      <div class="player-list-hdr">
+        <h3>👥 Người chơi</h3>
+        <span class="player-count" id="p-count">0</span>
+      </div>
+      <div class="player-list-body" id="player-list-body">
+        <div class="player-empty">Chưa có ai tham gia...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lobby-side">
+    <div class="card">
+      <div class="sec-label">Cài đặt phòng</div>
+      <div style="font-size:14px;color:var(--muted);line-height:2">
+        📝 Số câu: <strong id="cfg-q" style="color:var(--txt)">–</strong><br/>
+        ⏱️ Thời gian: <strong id="cfg-t" style="color:var(--txt)">–</strong>
+      </div>
+    </div>
+    <div class="lobby-actions">
+      <button class="btn pri" id="btn-start" onclick="startGame()" disabled>
+        ▶ Bắt đầu (chờ người vào...)
+      </button>
+      <button class="btn sec" onclick="if(confirm('Huỷ phòng?'))location.reload()">
+        ✕ Huỷ phòng
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- QUESTION (host view) -->
+<div id="s-question" class="screen">
+  <div class="q-main">
+    <div class="q-top">
+      <span class="q-badge" id="h-q-badge">Câu 1 / 20</span>
+      <div class="q-timer-wrap">
+        <div>
+          <div class="answer-bar"><div class="answer-fill" id="ans-fill" style="width:0%"></div></div>
+          <div class="answer-label" id="ans-label">0 / 0 đã trả lời</div>
+        </div>
+        <div class="big-timer" id="h-timer">20</div>
+      </div>
+    </div>
+
+    <div class="q-text-box">
+      <div class="q-num" id="h-q-num">Câu 1</div>
+      <div class="q-txt" id="h-q-txt"></div>
+    </div>
+    <div class="opts-host" id="h-opts"></div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:16px;text-align:center">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Mã phòng</div>
+      <div style="font-size:28px;font-weight:800;letter-spacing:4px;color:var(--acc)" id="h-code"></div>
+    </div>
+    <div class="card">
+      <div class="sec-label">Đáp án người chơi</div>
+      <div id="h-dist-live" style="font-size:13px;color:var(--muted)">Đang chờ...</div>
+    </div>
+  </div>
+</div>
+
+<!-- REVEAL (host view) -->
+<div id="s-reveal" class="screen">
+  <div class="q-main">
+    <h2 style="margin-bottom:20px;font-size:20px">📊 Kết quả câu <span id="rv-qnum"></span></h2>
+
+    <div class="q-text-box" style="margin-bottom:18px">
+      <div class="q-txt" id="rv-q-txt" style="font-size:17px"></div>
+    </div>
+
+    <div class="dist-chart" id="dist-chart"></div>
+
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn pri" id="btn-next" onclick="nextQ()" style="flex:1">
+        Câu tiếp theo →
+      </button>
+      <button class="btn danger" onclick="if(confirm('Kết thúc?'))socket.emit('host:end')" style="padding:13px 20px">
+        ⏹ Kết thúc
+      </button>
+    </div>
+  </div>
+
+  <div>
+    <div class="lb-full" id="h-lb"></div>
+  </div>
+</div>
+
+<!-- GAMEOVER (host view) -->
+<div id="s-gameover" class="screen">
+  <div class="inner">
+    <div class="trophy">🏆</div>
+    <h1>Kết thúc cuộc thi!</h1>
+    <p id="go-sub">Cảm ơn tất cả đã tham gia</p>
+    <div class="final-podium" id="go-podium"></div>
+    <div class="lb-full" id="go-lb-full" style="margin-bottom:24px"></div>
+    <button class="btn pri" style="padding:15px 40px" onclick="location.reload()">🔄 Tạo phòng mới</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+let cfg = { numQ: 20, timePerQ: 20 };
+let roomCode = '';
+let hTimer = null;
+let currentCorrectIndex = -1;
+let currentOpts = [];
+const COLORS = ['A','B','C','D','E','F'];
+
+/* ── Pills ── */
+['numq','time'].forEach(g => {
+  document.querySelectorAll(`#${g}-pills .pill`).forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll(`#${g}-pills .pill`).forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      if (g === 'numq') cfg.numQ = +btn.dataset.v;
+      else cfg.timePerQ = +btn.dataset.v;
+    });
+  });
+});
+
+/* ── Screens ── */
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('on'); s.style.display = 'none';
+  });
+  const el = document.getElementById(id);
+  el.style.display = 'flex';
+  void el.offsetWidth;
+  el.classList.add('on');
+}
+
+/* ── Create room ── */
+function createRoom() {
+  socket.emit('host:create', { numQ: cfg.numQ, timePerQ: cfg.timePerQ });
+}
+
+socket.on('host:created', ({ code, totalQ }) => {
+  roomCode = code;
+  document.getElementById('room-code').textContent = code;
+  document.getElementById('h-code').textContent = code;
+  document.getElementById('cfg-q').textContent = totalQ + ' câu';
+  document.getElementById('cfg-t').textContent = cfg.timePerQ + 's / câu';
+
+  const url = `${location.origin}?code=${code}`;
+  document.getElementById('join-url').textContent = url;
+  document.getElementById('qr-img').src =
+    `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(url)}&bgcolor=ffffff&color=0f172a`;
+
+  show('s-lobby');
+});
+
+/* ── Lobby: player list ── */
+socket.on('host:lobby', ({ players }) => {
+  const count = players.length;
+  document.getElementById('p-count').textContent = count;
+  const btn = document.getElementById('btn-start');
+  btn.disabled = count === 0;
+  btn.textContent = count > 0 ? `▶ Bắt đầu (${count} người)` : '▶ Bắt đầu (chờ người vào...)';
+
+  const body = document.getElementById('player-list-body');
+  if (!count) {
+    body.innerHTML = '<div class="player-empty">Chưa có ai tham gia...</div>';
+    return;
+  }
+  body.innerHTML = players.map(p => `
+    <div class="player-item">
+      <div class="player-avatar">${p.nickname[0].toUpperCase()}</div>
+      <div class="player-nick">${p.nickname}</div>
+    </div>`).join('');
+});
+
+function startGame() { socket.emit('host:start'); }
+
+/* ── Question ── */
+let questionStart = 0;
+socket.on('host:question', ({ index, total, text, opts, timePerQ, correctIndex }) => {
+  currentCorrectIndex = correctIndex;
+  currentOpts = opts;
+  questionStart = Date.now();
+
+  document.getElementById('h-q-badge').textContent = `Câu ${index+1} / ${total}`;
+  document.getElementById('h-q-num').textContent = `Câu ${index+1}`;
+  document.getElementById('h-q-txt').textContent = text;
+
+  document.getElementById('h-opts').innerHTML = opts.map((o, i) => `
+    <div class="opt-host ${COLORS[i]}">
+      <span class="opt-letter">${COLORS[i]}</span>
+      <span class="opt-txt">${o}</span>
+    </div>`).join('');
+
+  // Reset answer bar
+  document.getElementById('ans-fill').style.width = '0%';
+  document.getElementById('ans-label').textContent = '0 / ? đã trả lời';
+
+  // Start host timer display
+  startHostTimer(timePerQ);
+  show('s-question');
+});
+
+function startHostTimer(secs) {
+  clearInterval(hTimer);
+  let t = secs;
+  const el = document.getElementById('h-timer');
+  function tick() {
+    el.textContent = t;
+    el.className = 'big-timer' + (t <= 5 ? ' danger' : t <= 10 ? ' warn' : '');
+    if (t <= 0) clearInterval(hTimer);
+    t--;
+  }
+  tick();
+  hTimer = setInterval(tick, 1000);
+}
+
+/* ── Answer update ── */
+socket.on('host:answer-update', ({ answered, total, dist }) => {
+  const pct = total > 0 ? Math.round(answered / total * 100) : 0;
+  document.getElementById('ans-fill').style.width = pct + '%';
+  document.getElementById('ans-label').textContent = `${answered} / ${total} đã trả lời`;
+
+  // Live mini dist
+  document.getElementById('h-dist-live').innerHTML = COLORS.slice(0, currentOpts.length).map((c, i) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font-weight:700;color:var(--muted);width:14px">${c}</span>
+      <div style="flex:1;background:var(--sur2);border-radius:99px;height:8px;overflow:hidden">
+        <div style="height:100%;border-radius:99px;background:${colorHex(c)};
+             width:${total > 0 ? Math.round(dist[i]/total*100) : 0}%;transition:width .3s"></div>
+      </div>
+      <span style="font-size:12px;font-weight:700;min-width:20px;text-align:right">${dist[i]||0}</span>
+    </div>`).join('');
+});
+
+function colorHex(c) {
+  return {A:'#ef4444',B:'#3b82f6',C:'#f59e0b',D:'#22c55e',E:'#a855f7',F:'#ec4899'}[c]||'#64748b';
+}
+
+/* ── Reveal ── */
+socket.on('host:reveal', ({ correctIndex, leaderboard, dist, hasNext, answered, total }) => {
+  clearInterval(hTimer);
+
+  // Highlight correct answer
+  document.querySelectorAll('.opt-host').forEach((el, i) => {
+    if (i === correctIndex) el.classList.add('correct');
+    else el.style.opacity = '.35';
+  });
+
+  // Copy question text to reveal screen
+  document.getElementById('rv-qnum').textContent =
+    document.getElementById('h-q-badge').textContent;
+  document.getElementById('rv-q-txt').textContent =
+    document.getElementById('h-q-txt').textContent;
+
+  // Distribution chart
+  const maxVal = Math.max(...dist, 1);
+  document.getElementById('dist-chart').innerHTML =
+    COLORS.slice(0, currentOpts.length).map((c, i) => `
+      <div class="dist-row">
+        <span class="dist-label ${c}">${c}</span>
+        <div class="dist-bar-wrap">
+          <div class="dist-bar ${c}" style="width:${dist[i]/maxVal*100}%">
+            ${i===correctIndex?'✓ ':''} ${currentOpts[i]}
+          </div>
+        </div>
+        <span class="dist-n">${dist[i]||0}</span>
+      </div>`).join('');
+
+  // Leaderboard
+  const medals = ['🥇','🥈','🥉'];
+  document.getElementById('h-lb').innerHTML =
+    `<div class="lb-full-hdr">🏆 Bảng xếp hạng — ${answered||0}/${total||0} trả lời</div>` +
+    leaderboard.slice(0, 8).map((p, i) => `
+      <div class="lb-full-row">
+        <span class="lb-full-rank">${medals[i]||p.rank}</span>
+        <span class="lb-full-nick">${p.nickname}</span>
+        <span class="lb-full-score">${p.score.toLocaleString()}</span>
+      </div>`).join('');
+
+  const btn = document.getElementById('btn-next');
+  btn.textContent = hasNext ? 'Câu tiếp theo →' : '🏁 Kết thúc & Xem kết quả';
+
+  show('s-reveal');
+});
+
+function nextQ() { socket.emit('host:next'); }
+
+/* ── Game over ── */
+socket.on('game:over', ({ leaderboard }) => {
+  clearInterval(hTimer);
+  document.getElementById('go-sub').textContent =
+    `${leaderboard.length} người tham gia · Cảm ơn đã chơi!`;
+
+  // Podium (top 3)
+  const podiumIcons = ['🥇','🥈','🥉'];
+  document.getElementById('go-podium').innerHTML =
+    leaderboard.slice(0, 3).map((p, i) => `
+      <div class="podium-card">
+        <div class="podium-icon">${podiumIcons[i]}</div>
+        <div class="podium-nick">${p.nickname}</div>
+        <div class="podium-score">${p.score.toLocaleString()}</div>
+      </div>`).join('');
+
+  // Full leaderboard
+  document.getElementById('go-lb-full').innerHTML =
+    `<div class="lb-full-hdr">🏆 Bảng xếp hạng cuối cùng</div>` +
+    leaderboard.map((p, i) => `
+      <div class="lb-full-row">
+        <span class="lb-full-rank">${['🥇','🥈','🥉'][i]||p.rank}</span>
+        <span class="lb-full-nick">${p.nickname}</span>
+        <span class="lb-full-score">${p.score.toLocaleString()}</span>
+      </div>`).join('');
+
+  show('s-gameover');
+});
+
+socket.on('host:error', ({ msg }) => alert(msg));
+</script>
+</body>
+</html>
