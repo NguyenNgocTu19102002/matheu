@@ -73,7 +73,7 @@ app.get('/play', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.
 // ── Socket.io ────────────────────────────────────────────────────────────────
 io.on('connection', socket => {
   // ── HOST: create room ───────────────────────────────────────────────────
-  socket.on('host:create', ({ numQ = 20, timePerQ = 20 }) => {
+  socket.on('host:create', ({ numQ = 20, timePerQ = 20, maxPlayers = 50 }) => {
     let code;
     do { code = generateCode(); } while (rooms.has(code));
 
@@ -81,6 +81,7 @@ io.on('connection', socket => {
       code,
       hostId: socket.id,
       players: [],          // { id, nickname, score }
+      maxPlayers,
       questions: prepareQuestions(numQ),
       currentQ: -1,
       status: 'waiting',    // waiting | question | reveal | finished
@@ -101,6 +102,7 @@ io.on('connection', socket => {
     const room = rooms.get(code.toUpperCase().trim());
     if (!room) return socket.emit('player:error', { msg: 'Mã phòng không tồn tại!' });
     if (room.status !== 'waiting') return socket.emit('player:error', { msg: 'Cuộc thi đã bắt đầu!' });
+    if (room.maxPlayers > 0 && room.players.length >= room.maxPlayers) return socket.emit('player:error', { msg: 'Phòng thi đã đầy!' });
 
     const nick = nickname.trim().slice(0, 20);
     if (!nick) return socket.emit('player:error', { msg: 'Nhập nickname đi bạn!' });

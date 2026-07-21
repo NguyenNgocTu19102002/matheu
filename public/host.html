@@ -205,6 +205,16 @@
       </div>
     </div>
 
+    <div class="card">
+      <h3>👥 Giới hạn người chơi</h3>
+      <div class="pills" id="maxp-pills">
+        <button class="pill" data-v="10">10</button>
+        <button class="pill" data-v="20">20</button>
+        <button class="pill on" data-v="50">50</button>
+        <button class="pill" data-v="0">Không giới hạn</button>
+      </div>
+    </div>
+
     <button class="btn pri" style="width:100%;padding:16px;font-size:16px" onclick="createRoom()">
       🚀 Tạo phòng thi
     </button>
@@ -327,7 +337,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const socket = io();
-let cfg = { numQ: 20, timePerQ: 20 };
+let cfg = { numQ: 20, timePerQ: 20, maxPlayers: 50 };
 let roomCode = '';
 let hTimer = null;
 let currentCorrectIndex = -1;
@@ -335,13 +345,14 @@ let currentOpts = [];
 const COLORS = ['A','B','C','D','E','F'];
 
 /* ── Pills ── */
-['numq','time'].forEach(g => {
+['numq','time','maxp'].forEach(g => {
   document.querySelectorAll(`#${g}-pills .pill`).forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll(`#${g}-pills .pill`).forEach(b => b.classList.remove('on'));
       btn.classList.add('on');
       if (g === 'numq') cfg.numQ = +btn.dataset.v;
-      else cfg.timePerQ = +btn.dataset.v;
+      else if (g === 'time') cfg.timePerQ = +btn.dataset.v;
+      else cfg.maxPlayers = +btn.dataset.v;
     });
   });
 });
@@ -359,7 +370,7 @@ function show(id) {
 
 /* ── Create room ── */
 function createRoom() {
-  socket.emit('host:create', { numQ: cfg.numQ, timePerQ: cfg.timePerQ });
+  socket.emit('host:create', { numQ: cfg.numQ, timePerQ: cfg.timePerQ, maxPlayers: cfg.maxPlayers });
 }
 
 socket.on('host:created', ({ code, totalQ }) => {
